@@ -1,16 +1,39 @@
+#include "crow_all.h"
+#include "include/modelos.hpp"
+#include <pqxx/pqxx> 
 #include <iostream>
-#include "incluir/modelos.hpp" 
 
 int main() {
+    crow::SimpleApp app;
+
     
-    Vinilo miVinilo;
-    miVinilo.id = 1;
-    miVinilo.titulo = "The Wall";
-    miVinilo.artista = "Pink Floyd";
-    miVinilo.precio = 5200.00;
+    CROW_ROUTE(app, "/")([](){
+        return "Servidor de Vinilos de Pablo funcionando!";
+    });
 
-    std::cout << "--- Servidor de Vinilos levantado ---" << std::endl;
-    std::cout << "Cargando disco: " << miVinilo.titulo << " de " << miVinilo.artista << std::endl;
+    
+    CROW_ROUTE(app, "/vinilos")([](){
+        try {
+            
+            pqxx::connection C("dbname=tienda_vinilos user=postgres password=tu_password host=localhost");
+            pqxx::work W(C);
+            pqxx::result R = W.exec("SELECT id, titulo, artista, precio FROM vinilos");
 
-    return 0;
+            std::vector<crow::json::wvalue> lista_vinilos;
+            for (auto const &row : R) {
+                lista_vinilos.push_back({
+                    {"id", row[0].as<int>()},
+                    {"titulo", row[1].as<std::string>()},
+                    {"artista", row[2].as<std::string>()},
+                    {"precio", row[3].as<double>()}
+                });
+            }
+            return crow::response(crow::json::wvalue(lista_vinilos));
+        } catch (const std::exception &e) {
+            return crow::response(500, e.what());
+        }
+    });
+
+    std::cout << "Servidor corriendo en http://localhost:8080" << std::endl;
+    app.port(8080).multithreaded().run();
 }
